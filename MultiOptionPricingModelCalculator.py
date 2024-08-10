@@ -5,7 +5,7 @@ from plotting import plot_greeks_carousel, plot_pnl_heatmap, plot_past_calculati
 from database import init_db, save_inputs, save_outputs, get_past_calculations, get_latest_calculation_id
 
 # Set page config as the first Streamlit command
-st.set_page_config(page_title="Advanced Options Pricing Dashboard", layout="wide")
+st.set_page_config(page_title="Aditya Khowal's Multi Options Pricing Dashboard", layout="wide")
 
 # Initialize the database connection
 init_db()
