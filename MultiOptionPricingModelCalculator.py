@@ -10,6 +10,16 @@ st.set_page_config(page_title="Advanced Options Pricing Dashboard", layout="wide
 # Initialize the database connection
 init_db()
 
+# Initialize session state variables
+if 'calculated' not in st.session_state:
+    st.session_state.calculated = False
+if 'call_price' not in st.session_state:
+    st.session_state.call_price = None
+if 'put_price' not in st.session_state:
+    st.session_state.put_price = None
+if 'heatmap_params' not in st.session_state:
+    st.session_state.heatmap_params = {}
+
 # Title and input fields
 st.title("Advanced Options Pricing Dashboard")
 
@@ -60,18 +70,35 @@ if st.button("Calculate"):
 
     # Calculate option prices
     if model == "Black-Scholes":
-        call_price = black_scholes(S, K, T, r, sigma, "call")
-        put_price = black_scholes(S, K, T, r, sigma, "put")
+        st.session_state.call_price = black_scholes(S, K, T, r, sigma, "call")
+        st.session_state.put_price = black_scholes(S, K, T, r, sigma, "put")
     elif model == "Heston":
-        call_price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, "call")
-        put_price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, "put")
+        st.session_state.call_price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, "call")
+        st.session_state.put_price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, "put")
     elif model == "Jump Diffusion":
-        call_price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, "call")
-        put_price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, "put")
+        st.session_state.call_price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, "call")
+        st.session_state.put_price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, "put")
     elif model == "Monte Carlo":
-        call_price = monte_carlo_american_option(S, K, T, r, sigma, N, M, "call")
-        put_price = monte_carlo_american_option(S, K, T, r, sigma, N, M, "put")
+        st.session_state.call_price = monte_carlo_american_option(S, K, T, r, sigma, N, M, "call")
+        st.session_state.put_price = monte_carlo_american_option(S, K, T, r, sigma, N, M, "put")
 
+    # Prepare parameters for heatmap plotting
+    st.session_state.heatmap_params = {
+        "S": S, "K": K, "T": T, "r": r, "sigma": sigma,
+        "model": model
+    }
+
+    if model == "Heston":
+        st.session_state.heatmap_params.update({"v0": v0, "rho": rho, "kappa": kappa, "theta": theta})
+    elif model == "Jump Diffusion":
+        st.session_state.heatmap_params.update({"lam": lam, "mu_j": mu_j, "sigma_j": sigma_j})
+    elif model == "Monte Carlo":
+        st.session_state.heatmap_params.update({"N": N, "M": M})
+
+    st.session_state.calculated = True
+
+# Display results if calculation has been performed
+if st.session_state.calculated:
     # Display option prices and get purchase prices
     st.markdown("## Option Prices and PNL")
     col1, col2 = st.columns(2)
@@ -80,26 +107,26 @@ if st.button("Calculate"):
             f"""
             <div style="background-color: #28a745; padding: 10px; border-radius: 10px; text-align: center;">
                 <h3 style="color: white; margin: 0;">Call Price</h3>
-                <p style="color: white; font-size: 24px; margin: 0;">${call_price:.2f}</p>
+                <p style="color: white; font-size: 24px; margin: 0;">${st.session_state.call_price:.2f}</p>
             </div>
             """,
             unsafe_allow_html=True
         )
-        call_purchase_price = st.number_input("Call Purchase Price", value=call_price, step=0.01)
-        call_pnl = call_price - call_purchase_price
+        call_purchase_price = st.number_input("Call Purchase Price", value=st.session_state.call_price, step=0.01)
+        call_pnl = st.session_state.call_price - call_purchase_price
         st.markdown(f"Call PNL: ${call_pnl:.2f}")
     with col2:
         st.markdown(
             f"""
             <div style="background-color: #dc3545; padding: 10px; border-radius: 10px; text-align: center;">
                 <h3 style="color: white; margin: 0;">Put Price</h3>
-                <p style="color: white; font-size: 24px; margin: 0;">${put_price:.2f}</p>
+                <p style="color: white; font-size: 24px; margin: 0;">${st.session_state.put_price:.2f}</p>
             </div>
             """,
             unsafe_allow_html=True
         )
-        put_purchase_price = st.number_input("Put Purchase Price", value=put_price, step=0.01)
-        put_pnl = put_price - put_purchase_price
+        put_purchase_price = st.number_input("Put Purchase Price", value=st.session_state.put_price, step=0.01)
+        put_pnl = st.session_state.put_price - put_purchase_price
         st.markdown(f"Put PNL: ${put_pnl:.2f}")
 
     # Greeks Carousel
@@ -117,28 +144,23 @@ if st.button("Calculate"):
         sigma_min = st.slider("Min Volatility", min_value=0.05, max_value=sigma, value=0.1, step=0.01, key="sigma_min")
         sigma_max = st.slider("Max Volatility", min_value=sigma, max_value=1.0, value=0.5, step=0.01, key="sigma_max")
 
-    # Prepare parameters for heatmap plotting
-    heatmap_params = {
-        "S": S, "K": K, "T": T, "r": r, "sigma": sigma,
+    # Update heatmap parameters
+    st.session_state.heatmap_params.update({
         "spot_min": spot_min, "spot_max": spot_max,
-        "sigma_min": sigma_min, "sigma_max": sigma_max,
-        "model": model
-    }
-
-    if model == "Heston":
-        heatmap_params.update({"v0": v0, "rho": rho, "kappa": kappa, "theta": theta})
-    elif model == "Jump Diffusion":
-        heatmap_params.update({"lam": lam, "mu_j": mu_j, "sigma_j": sigma_j})
-    elif model == "Monte Carlo":
-        heatmap_params.update({"N": N, "M": M})
+        "sigma_min": sigma_min, "sigma_max": sigma_max
+    })
 
     # Plot PNL Heatmaps
     col1, col2 = st.columns(2)
     with col1:
-        call_heatmap = plot_pnl_heatmap(**heatmap_params, option_type="call", purchase_price=call_purchase_price)
+        with st.spinner('Generating Call Option PNL Heatmap...'):
+            call_heatmap = plot_pnl_heatmap(**st.session_state.heatmap_params, option_type="call",
+                                            purchase_price=call_purchase_price)
         st.plotly_chart(call_heatmap, use_container_width=True)
     with col2:
-        put_heatmap = plot_pnl_heatmap(**heatmap_params, option_type="put", purchase_price=put_purchase_price)
+        with st.spinner('Generating Put Option PNL Heatmap...'):
+            put_heatmap = plot_pnl_heatmap(**st.session_state.heatmap_params, option_type="put",
+                                           purchase_price=put_purchase_price)
         st.plotly_chart(put_heatmap, use_container_width=True)
 
 # Display past calculations

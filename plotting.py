@@ -34,35 +34,43 @@ def plot_greeks_carousel(S, K, T, r, sigma, option_type):
         fig.update_yaxes(title_text="Value", row=1, col=i)
 
     return fig
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def cached_price_calculation(S, K, T, r, sigma, option_type, model, **kwargs):
+    if model == "Black-Scholes":
+        return black_scholes(S, K, T, r, sigma, option_type)
+    elif model == "Heston":
+        return heston_price(S, K, T, r, kwargs['v0'], kwargs['rho'],
+                            kwargs['kappa'], kwargs['theta'], sigma, option_type)
+    elif model == "Jump Diffusion":
+        return merton_jump_diffusion(S, K, T, r, sigma, kwargs['lam'],
+                                     kwargs['mu_j'], kwargs['sigma_j'], option_type)
+    elif model == "Monte Carlo":
+        return monte_carlo_american_option(S, K, T, r, sigma, kwargs['N'], kwargs['M'], option_type)
 
 def plot_pnl_heatmap(S, K, T, r, sigma, option_type, spot_min, spot_max, sigma_min, sigma_max, model, purchase_price, **kwargs):
-    sigma_values = np.linspace(sigma_min, sigma_max, 20)
-    spot_values = np.linspace(spot_min, spot_max, 20)
+    # Reduce resolution
+    num_points = 15
+    sigma_values = np.linspace(sigma_min, sigma_max, num_points)
+    spot_values = np.linspace(spot_min, spot_max, num_points)
 
-    def calculate_price(S, K, T, r, sigma, option_type):
-        if model == "Black-Scholes":
-            return black_scholes(S, K, T, r, sigma, option_type)
-        elif model == "Heston":
-            return heston_price(S, K, T, r, kwargs.get('v0'), kwargs.get('rho'),
-                                kwargs.get('kappa'), kwargs.get('theta'), sigma, option_type)
-        elif model == "Jump Diffusion":
-            return merton_jump_diffusion(S, K, T, r, sigma, kwargs.get('lam'),
-                                         kwargs.get('mu_j'), kwargs.get('sigma_j'), option_type)
-        elif model == "Monte Carlo":
-            return monte_carlo_american_option(S, K, T, r, sigma, kwargs.get('N'), kwargs.get('M'), option_type)
+    # Create meshgrid for vectorized operation
+    spot_grid, sigma_grid = np.meshgrid(spot_values, sigma_values)
 
-    price_grid = np.array([[calculate_price(spot_val, K, T, r, sigma_val, option_type)
-                            for spot_val in spot_values] for sigma_val in sigma_values])
+    # Vectorized price calculation
+    vfunc = np.vectorize(lambda s, sig: cached_price_calculation(s, K, T, r, sig, option_type, model, **kwargs))
+    price_grid = vfunc(spot_grid, sigma_grid)
+
     # Calculate PNL
     pnl_grid = price_grid - purchase_price
 
-    # Save heatmap data to database
+    # Save heatmap data to database (consider reducing the frequency of saves)
     input_id = get_latest_calculation_id()
-
-    for i, sigma_val in enumerate(sigma_values):
-        for j, spot_val in enumerate(spot_values):
-            volatility_shock = (sigma_val - sigma) / sigma
-            stock_price_shock = (spot_val - S) / S
+    for i in range(0, num_points, 3):  # Save every 3rd point to reduce database writes
+        for j in range(0, num_points, 3):
+            volatility_shock = (sigma_values[i] - sigma) / sigma
+            stock_price_shock = (spot_values[j] - S) / S
             option_price = price_grid[i, j]
             pnl = pnl_grid[i, j]
             is_call = option_type == "call"
@@ -78,7 +86,7 @@ def plot_pnl_heatmap(S, K, T, r, sigma, option_type, spot_min, spot_max, sigma_m
         textfont={"size": 10},
         hoverinfo='all',
         hoverongaps=False,
-        zmid=0  # This ensures that 0 is always white
+        zmid=0
     ))
 
     fig.update_layout(
