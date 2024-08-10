@@ -3,6 +3,4 @@ pandas
 numpy
 plotly
 scipy
-random
 pymongo
-urllib
