@@ -21,7 +21,7 @@ if 'heatmap_params' not in st.session_state:
     st.session_state.heatmap_params = {}
 
 # Title and input fields
-st.title("Advanced Options Pricing Dashboard")
+st.title("Aditya Khowal's Advanced Options Pricing Dashboard")
 
 # Input Fields
 col1, col2, col3 = st.columns(3)
