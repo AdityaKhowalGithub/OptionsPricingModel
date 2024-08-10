@@ -1,22 +1,42 @@
 import streamlit as st
-import numpy as np
 from pricing_models import black_scholes, heston_price, merton_jump_diffusion, monte_carlo_american_option
 from plotting import plot_greeks_carousel, plot_heatmap
-from greeks import delta, gamma, vega, theta, rho
-
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Streamlit App
 st.set_page_config(page_title="Advanced Options Pricing Dashboard", layout="wide")
-st.title("Advanced Options Pricing Dashboard")
 
 # Light/Dark mode switch
 if 'light_mode' not in st.session_state:
     st.session_state.light_mode = False
 
-light_mode = st.sidebar.checkbox("Light Mode", value=st.session_state.light_mode)
-st.session_state.light_mode = light_mode
+# Custom CSS for the shaking lightbulb
+shaking_lightbulb = """
+<style>
+@keyframes shake {
+    0% { transform: rotate(0deg); }
+    25% { transform: rotate(5deg); }
+    50% { transform: rotate(0deg); }
+    75% { transform: rotate(-5deg); }
+    100% { transform: rotate(0deg); }
+}
+.shaking {
+    display: inline-block;
+    animation: shake 0.5s;
+}
+</style>
+"""
+
+st.markdown(shaking_lightbulb, unsafe_allow_html=True)
+
+# Title and light mode switch
+col1, col2 = st.columns([4, 1])
+with col1:
+    st.title("Advanced Options Pricing Dashboard")
+with col2:
+    light_mode = st.checkbox("🔦", value=st.session_state.light_mode, key="light_mode_checkbox")
+    if light_mode != st.session_state.light_mode:
+        st.session_state.light_mode = light_mode
+        st.markdown(f"<script>document.querySelector('.stCheckbox').classList.add('shaking');</script>", unsafe_allow_html=True)
 
 # Custom color scheme
 if light_mode:
@@ -48,6 +68,9 @@ st.markdown(
     }}
     .stButton>button {{
         color: {background_color};
+        background-color: {accent_color};
+    }}
+    .stSlider>div>div>div>div {{
         background-color: {accent_color};
     }}
     </style>
@@ -136,23 +159,42 @@ with col2:
 # Greeks Carousel
 st.markdown("## Option Greeks")
 greeks_fig = plot_greeks_carousel(S, K, T, r, sigma, "call")
-st.plotly_chart(greeks_fig, use_container_width=True)
+
+# Custom CSS for horizontal scrolling
+st.markdown("""
+<style>
+.scroll-container {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.scroll-container::-webkit-scrollbar {
+    display: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Wrap the Plotly chart in a scrollable container
+st.markdown('<div class="scroll-container">', unsafe_allow_html=True)
+st.plotly_chart(greeks_fig, use_container_width=False)
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 # Heatmap sliders
 st.markdown("## Option Price Heatmaps")
 col1, col2 = st.columns(2)
 with col1:
-    S_min = st.slider("Min Stock Price", min_value=0.5*S, max_value=S, value=0.8*S, step=0.01)
-    S_max = st.slider("Max Stock Price", min_value=S, max_value=1.5*S, value=1.2*S, step=0.01)
+    spot_min = st.slider("Min Spot Price", min_value=0.5*S, max_value=S, value=0.8*S, step=0.01, key="spot_min")
+    spot_max = st.slider("Max Spot Price", min_value=S, max_value=1.5*S, value=1.2*S, step=0.01, key="spot_max")
 with col2:
-    sigma_min = st.slider("Min Volatility", min_value=0.05, max_value=sigma, value=0.1, step=0.01)
-    sigma_max = st.slider("Max Volatility", min_value=sigma, max_value=1.0, value=0.5, step=0.01)
+    sigma_min = st.slider("Min Volatility", min_value=0.05, max_value=sigma, value=0.1, step=0.01, key="sigma_min")
+    sigma_max = st.slider("Max Volatility", min_value=sigma, max_value=1.0, value=0.5, step=0.01, key="sigma_max")
 
 # Plot Heatmaps
 col1, col2 = st.columns(2)
 with col1:
-    call_heatmap = plot_heatmap(S, K, T, r, sigma, "call", S_min, S_max, sigma_min, sigma_max)
+    call_heatmap = plot_heatmap(S, K, T, r, sigma, "call", spot_min, spot_max, sigma_min, sigma_max)
     st.plotly_chart(call_heatmap, use_container_width=True)
 with col2:
-    put_heatmap = plot_heatmap(S, K, T, r, sigma, "put", S_min, S_max, sigma_min, sigma_max)
+    put_heatmap = plot_heatmap(S, K, T, r, sigma, "put", spot_min, spot_max, sigma_min, sigma_max)
     st.plotly_chart(put_heatmap, use_container_width=True)
