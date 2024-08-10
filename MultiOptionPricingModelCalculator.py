@@ -4,6 +4,7 @@ from scipy.stats import norm
 from scipy.integrate import quad
 import yfinance as yf
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # Option Pricing Models
@@ -94,22 +95,37 @@ def plot_greeks(S, K, T, r, sigma, option_type):
 
     fig, ax = plt.subplots(2, 2, figsize=(10, 8))
 
-    ax[0, 0].plot(prices, deltas, label='Delta')
+    ax[0, 0].plot(prices, deltas, label='Delta', color='green' if option_type == "call" else 'red')
     ax[0, 0].set_title('Delta')
     ax[0, 0].grid(True)
 
-    ax[0, 1].plot(prices, gammas, label='Gamma')
+    ax[0, 1].plot(prices, gammas, label='Gamma', color='blue')
     ax[0, 1].set_title('Gamma')
     ax[0, 1].grid(True)
 
-    ax[1, 0].plot(prices, vegas, label='Vega')
+    ax[1, 0].plot(prices, vegas, label='Vega', color='purple')
     ax[1, 0].set_title('Vega')
     ax[1, 0].grid(True)
 
-    ax[1, 1].plot(prices, thetas, label='Theta')
+    ax[1, 1].plot(prices, thetas, label='Theta', color='orange')
     ax[1, 1].set_title('Theta')
     ax[1, 1].grid(True)
 
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    # Heatmap of Greeks for varying stock prices and volatilities
+    sigma_values = np.linspace(0.1, 0.5, 50)
+    S_values = np.linspace(S * 0.8, S * 1.2, 50)
+    delta_grid = np.array(
+        [[delta(S_val, K, T, r, sigma_val, option_type) for S_val in S_values] for sigma_val in sigma_values])
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(delta_grid, xticklabels=np.round(S_values, 2), yticklabels=np.round(sigma_values, 2), cmap="YlGnBu",
+                ax=ax)
+    ax.set_title('Delta Heatmap')
+    ax.set_xlabel('Stock Price')
+    ax.set_ylabel('Volatility')
     st.pyplot(fig)
 
 
@@ -150,10 +166,11 @@ def rho(S, K, T, r, sigma, option_type="call"):
 
 
 # Streamlit App
+st.set_page_config(page_title="Options Pricing Model", layout="wide")
 st.title("Options Pricing Model")
 st.write("This application allows you to calculate option prices using different models and visualize the Greeks.")
 
-# Input Fields
+# Input Fields with default values
 st.sidebar.header("Input Parameters")
 
 S = st.sidebar.number_input("Stock Price (S)", value=100.0)
@@ -183,17 +200,19 @@ elif model == "Monte Carlo":
     N = st.sidebar.number_input("Number of Simulations (N)", value=10000)
     M = st.sidebar.number_input("Number of Time Steps (M)", value=100)
 
-# Calculate Option Price
-if st.sidebar.button("Calculate Option Price"):
-    if model == "Black-Scholes":
-        price = black_scholes(S, K, T, r, sigma, option_type)
-    elif model == "Heston":
-        price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, option_type)
-    elif model == "Jump Diffusion":
-        price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, option_type)
-    elif model == "Monte Carlo":
-        price = monte_carlo_american_option(S, K, T, r, sigma, N, M, option_type)
-    st.write(f"### Option Price: {price:.2f}")
+# Pre-calculate with default values
+if model == "Black-Scholes":
+    price = black_scholes(S, K, T, r, sigma, option_type)
+elif model == "Heston":
+    price = heston_price(S, K, T, r, v0, rho, kappa, theta, sigma, option_type)
+elif model == "Jump Diffusion":
+    price = merton_jump_diffusion(S, K, T, r, sigma, lam, mu_j, sigma_j, option_type)
+elif model == "Monte Carlo":
+    price = monte_carlo_american_option(S, K, T, r, sigma, N, M, option_type)
 
-    # Plot Greeks
-    plot_greeks(S, K, T, r, sigma, option_type)
+# Display the result
+st.write(f"### Option Price: <span style='color:{'green' if option_type == 'call' else 'red'};'>{price:.2f}</span>", unsafe_allow_html=True)
+
+
+# Plot Greeks
+plot_greeks(S, K, T, r, sigma, option_type)
